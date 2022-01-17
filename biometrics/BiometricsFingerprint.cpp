@@ -59,20 +59,8 @@ BiometricsFingerprint *BiometricsFingerprint::sInstance = nullptr;
 
 #define FOD_UI_PATH "/sys/devices/platform/soc/soc:qcom,dsi-display-primary/fod_ui"
 
-BiometricsFingerprint::BiometricsFingerprint() : mClientCallback(nullptr), mDevice(nullptr) {
-    sInstance = this; // keep track of the most recent instance
-    for (const auto& class_name : kHALClasses) {
-        mDevice = openHal(class_name);
-        if (!mDevice) {
-            ALOGE("Can't open HAL module, class %s", class_name);
-        } else {
-            ALOGI("Opened fingerprint HAL, class %s", class_name);
-            property_set("persist.vendor.sys.fp.vendor", class_name); // fix AliPay TouchID
-            break;
-        }
-    }
+#define TOUCH_FOD_ENABLE 10
 
-#ifdef FOD
 static bool readBool(int fd) {
     char c;
     int rc;
@@ -117,11 +105,9 @@ BiometricsFingerprint::BiometricsFingerprint() :
                 LOG(ERROR) << "failed to poll fd, err: " << rc;
                 continue;
             }
-
-            extCmd(COMMAND_NIT, readBool(fd) ? PARAM_NIT_FOD : PARAM_NIT_NONE);
-        }
-    }).detach();
-#endif
+        }).detach();
+    }
+    mTouchFeatureService = ITouchFeature::getService();
 }
 
 BiometricsFingerprint::~BiometricsFingerprint() {
@@ -457,10 +443,12 @@ Return<bool> BiometricsFingerprint::isUdfps(uint32_t /*sensorId*/) {
 
 Return<void> BiometricsFingerprint::onFingerDown(uint32_t /*x*/, uint32_t /*y*/,
         float /*minor*/, float /*major*/) {
+    mTouchFeatureService->setTouchMode(TOUCH_FOD_ENABLE, 1);
     return Void();
 }
 
 Return<void> BiometricsFingerprint::onFingerUp() {
+    mTouchFeatureService->resetTouchMode(TOUCH_FOD_ENABLE);
     return Void();
 }
 
